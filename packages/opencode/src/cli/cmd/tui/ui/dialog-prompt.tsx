@@ -49,14 +49,14 @@ export function DialogPrompt(props: DialogPromptProps) {
           ref={(val: TextareaRenderable) => (textarea = val)}
           initialValue={props.value}
           placeholder={props.placeholder ?? "Enter text"}
+          textColor={theme.text}
+          focusedTextColor={theme.text}
+          cursorColor={theme.text}
         />
       </box>
       <box paddingBottom={1} gap={1} flexDirection="row">
         <text fg={theme.text}>
           enter <span style={{ fg: theme.textMuted }}>submit</span>
-        </text>
-        <text fg={theme.text}>
-          esc <span style={{ fg: theme.textMuted }}>cancel</span>
         </text>
       </box>
     </box>

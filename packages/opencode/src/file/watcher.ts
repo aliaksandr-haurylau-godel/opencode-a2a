@@ -9,6 +9,8 @@ import { createWrapper } from "@parcel/watcher/wrapper"
 import { lazy } from "@/util/lazy"
 import type ParcelWatcher from "@parcel/watcher"
 
+declare const OPENCODE_LIBC: string | undefined
+
 export namespace FileWatcher {
   const log = Log.create({ service: "file.watcher" })
 
@@ -24,7 +26,7 @@ export namespace FileWatcher {
 
   const watcher = lazy(() => {
     const binding = require(
-      `@parcel/watcher-${process.platform}-${process.arch}${process.platform === "linux" ? "-glibc" : ""}`,
+      `@parcel/watcher-${process.platform}-${process.arch}${process.platform === "linux" ? `-${OPENCODE_LIBC || "glibc"}` : ""}`,
     )
     return createWrapper(binding) as typeof import("@parcel/watcher")
   })
@@ -47,7 +49,6 @@ export namespace FileWatcher {
       const subscribe: ParcelWatcher.SubscribeCallback = (err, evts) => {
         if (err) return
         for (const evt of evts) {
-          log.info("event", evt)
           if (evt.type === "create") Bus.publish(Event.Updated, { file: evt.path, event: "add" })
           if (evt.type === "update") Bus.publish(Event.Updated, { file: evt.path, event: "change" })
           if (evt.type === "delete") Bus.publish(Event.Updated, { file: evt.path, event: "unlink" })
@@ -83,7 +84,6 @@ export namespace FileWatcher {
   )
 
   export function init() {
-    // if (!Flag.OPENCODE_EXPERIMENTAL_WATCHER) return
     state()
   }
 }
