@@ -1,5 +1,5 @@
 import { Hono } from "hono"
-import { stream } from "hono/streaming"
+import { streamSSE } from "hono/streaming"
 import { DefaultRequestHandler, JsonRpcTransportHandler } from "@a2a-js/sdk/server"
 import { OpencodeClient } from "@opencode-ai/sdk"
 import { createAgentCard } from "./card"
@@ -19,7 +19,11 @@ export namespace A2AServer {
     const executor = new OpenCodeExecutor(taskStore, opts.sdk)
 
     // Create Request Handler
-    const requestHandler = new DefaultRequestHandler(card, taskStore, executor)
+    const requestHandler = new DefaultRequestHandler(
+      card,
+      taskStore,
+      executor
+    )
 
     // Create Transport Handler
     const transportHandler = new JsonRpcTransportHandler(requestHandler)
@@ -41,12 +45,13 @@ export namespace A2AServer {
 
       // If response is a generator, we need to stream it
       if (Symbol.asyncIterator in response) {
-        c.header("Content-Type", "application/x-ndjson")
-        return stream(c, async (stream) => {
-          // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
-          for await (const chunk of response) {
-            await stream.write(JSON.stringify(chunk) + "\n")
-          }
+        return streamSSE(c, async (stream) => {
+            // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
+            for await (const chunk of response) {
+                await stream.writeSSE({
+                    data: JSON.stringify(chunk)
+                })
+            }
         })
       } else {
         return c.json(response)
