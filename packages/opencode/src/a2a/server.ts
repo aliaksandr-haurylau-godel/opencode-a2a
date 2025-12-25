@@ -19,13 +19,22 @@ export namespace A2AServer {
     const executor = new OpenCodeExecutor(taskStore, opts.sdk)
 
     // Create Request Handler
-    const requestHandler = new DefaultRequestHandler(card, taskStore, executor)
+    const requestHandler = new DefaultRequestHandler(
+      card,
+      taskStore,
+      executor
+    )
 
     // Create Transport Handler
     const transportHandler = new JsonRpcTransportHandler(requestHandler)
 
     // Setup Hono server for A2A
     const app = new Hono()
+
+    app.get("/.well-known/agent-card.json", async (c) => {
+      const agentCard = await requestHandler.getAgentCard()
+      return c.json(agentCard)
+    })
 
     app.post("/", async (c) => {
       // Hono body parsing
@@ -38,10 +47,10 @@ export namespace A2AServer {
       if (Symbol.asyncIterator in response) {
         c.header("Content-Type", "application/x-ndjson")
         return stream(c, async (stream) => {
-          // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
-          for await (const chunk of response) {
-            await stream.write(JSON.stringify(chunk) + "\n")
-          }
+            // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
+            for await (const chunk of response) {
+                await stream.write(JSON.stringify(chunk) + "\n")
+            }
         })
       } else {
         return c.json(response)
