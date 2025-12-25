@@ -61,6 +61,7 @@
     "turbo": "2.5.6"
   },
   "dependencies": {
+    "@a2a-js/sdk": "0.3.7",
     "@aws-sdk/client-s3": "3.933.0",
     "@opencode-ai/script": "workspace:*",
     "@opencode-ai/sdk": "workspace:*",
