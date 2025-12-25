@@ -19,11 +19,7 @@ export namespace A2AServer {
     const executor = new OpenCodeExecutor(taskStore, opts.sdk)
 
     // Create Request Handler
-    const requestHandler = new DefaultRequestHandler(
-      card,
-      taskStore,
-      executor
-    )
+    const requestHandler = new DefaultRequestHandler(card, taskStore, executor)
 
     // Create Transport Handler
     const transportHandler = new JsonRpcTransportHandler(requestHandler)
@@ -46,12 +42,12 @@ export namespace A2AServer {
       // If response is a generator, we need to stream it
       if (Symbol.asyncIterator in response) {
         return streamSSE(c, async (stream) => {
-            // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
-            for await (const chunk of response) {
-                await stream.writeSSE({
-                    data: JSON.stringify(chunk)
-                })
-            }
+          // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
+          for await (const chunk of response) {
+            await stream.writeSSE({
+              data: JSON.stringify(chunk),
+            })
+          }
         })
       } else {
         return c.json(response)
