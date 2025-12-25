@@ -60,8 +60,8 @@ export class OpenCodeExecutor implements AgentExecutor {
     // Subscribe to events first
     const abortController = new AbortController()
 
-    // We start the background listener
-    this.startEventListener(sessionId, eventBus, taskId, requestContext.contextId, abortController.signal)
+    // We await subscription setup to avoid race condition
+    await this.startEventListener(sessionId, eventBus, taskId, requestContext.contextId, abortController.signal)
 
     try {
       // Send prompt
@@ -79,10 +79,11 @@ export class OpenCodeExecutor implements AgentExecutor {
         contextId: requestContext.contextId,
         final: true,
         status: {
-          state: "completed",
-          timestamp: new Date().toISOString(),
-        },
+            state: "completed",
+            timestamp: new Date().toISOString(),
+        }
       })
+
     } catch (err) {
       log.error("failed to prompt session", { error: err })
       eventBus.publish({
@@ -102,8 +103,8 @@ export class OpenCodeExecutor implements AgentExecutor {
         },
       })
     } finally {
-      // Stop the event listener
-      abortController.abort()
+        // Stop the event listener
+        abortController.abort()
     }
   }
 
@@ -131,82 +132,84 @@ export class OpenCodeExecutor implements AgentExecutor {
     eventBus: ExecutionEventBus,
     taskId: string,
     contextId: string,
-    signal: AbortSignal,
+    signal: AbortSignal
   ) {
+    // Perform subscription and wait for it
     const events = await this.sdk.event.subscribe({
       query: { directory: process.cwd() },
     })
 
     const iterator = events.stream
 
+    // Start background loop
     ;(async () => {
       try {
-        for await (const event of iterator) {
-          if (signal.aborted) break
+          for await (const event of iterator) {
+            if (signal.aborted) break
 
-          if (event.type === "message.part.updated") {
-            const props = event.properties
-            const { part } = props
+            if (event.type === "message.part.updated") {
+              const props = event.properties
+              const { part } = props
 
-            if (part.sessionID !== sessionId) continue
+              if (part.sessionID !== sessionId) continue
 
-            // Fetch message to check role, as per ACP agent
-            const message = await this.sdk.session
-              .message({
-                path: {
-                  id: sessionId,
-                  messageID: part.messageID,
-                },
-              })
-              .then((x) => x.data)
-              .catch((err) => {
-                log.error("unexpected error when fetching message", { error: err })
-                return undefined
-              })
+              // Fetch message to check role, as per ACP agent
+              const message = await this.sdk.session
+                      .message({
+                        path: {
+                          id: sessionId,
+                          messageID: part.messageID,
+                        },
+                      })
+                      .then((x) => x.data)
+                      .catch((err) => {
+                        log.error("unexpected error when fetching message", { error: err })
+                        return undefined
+                      })
 
-            if (!message || message.info.role !== "assistant") continue
+              if (!message || message.info.role !== "assistant") continue
 
-            if (part.type === "text") {
-              const delta = props.delta
-              if (delta) {
-                eventBus.publish({
-                  kind: "artifact-update",
-                  taskId,
-                  contextId,
-                  append: true,
-                  artifact: {
-                    artifactId: "response",
-                    name: "response",
-                    parts: [{ kind: "text", text: delta }],
-                  },
-                })
-              }
-            } else if (part.type === "tool") {
-              if (part.state.status === "running") {
-                eventBus.publish({
-                  kind: "status-update",
-                  taskId,
-                  contextId,
-                  final: false,
-                  status: {
-                    state: "working",
-                    timestamp: new Date().toISOString(),
-                    message: {
-                      kind: "message",
-                      messageId: crypto.randomUUID(),
-                      role: "agent",
-                      parts: [{ kind: "text", text: `Running tool: ${part.tool}` }],
+              if (part.type === "text") {
+                const delta = props.delta
+                if (delta) {
+                  eventBus.publish({
+                    kind: "artifact-update",
+                    taskId,
+                    contextId,
+                    append: true,
+                    artifact: {
+                      artifactId: "response",
+                      name: "response",
+                      parts: [{ kind: "text", text: delta }],
                     },
-                  },
-                })
+                  })
+                }
+              } else if (part.type === "tool") {
+                if (part.state.status === "running") {
+                   eventBus.publish({
+                    kind: "status-update",
+                    taskId,
+                    contextId,
+                    final: false,
+                    status: {
+                      state: "working",
+                      timestamp: new Date().toISOString(),
+                      message: {
+                          kind: "message",
+                          messageId: crypto.randomUUID(),
+                          role: "agent",
+                          parts: [{kind: "text", text: `Running tool: ${part.tool}`}]
+                      }
+                    },
+                  })
+                }
               }
             }
           }
-        }
       } catch (err) {
-        if (!signal.aborted) {
-          log.error("event listener error", { error: err })
-        }
+          if (!signal.aborted) {
+             log.error("event listener error", { error: err })
+          }
       }
     })()
   }
