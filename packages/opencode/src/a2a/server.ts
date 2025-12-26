@@ -27,17 +27,22 @@ export namespace A2AServer {
     // Setup Hono server for A2A
     const app = new Hono()
 
+    const cleanResult = (obj: any) => {
+      if (!obj || typeof obj !== "object") return obj
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { kind, ...rest } = obj
+      return rest
+    }
+
     const mapToStreamResponse = (rpcResponse: any) => {
       if (rpcResponse.error) {
         return {
           statusUpdate: {
-            kind: "status-update",
             taskId: "unknown",
             status: {
               state: "failed",
               timestamp: new Date().toISOString(),
               message: {
-                kind: "message",
                 messageId: crypto.randomUUID(),
                 role: "agent",
                 parts: [{ kind: "text", text: rpcResponse.error.message || "Unknown error" }],
@@ -51,13 +56,12 @@ export namespace A2AServer {
       const result = rpcResponse.result
       if (!result) return null
 
-      if (result.kind === "status-update") return { statusUpdate: result }
-      if (result.kind === "artifact-update") return { artifactUpdate: result }
-      if (result.kind === "task") return { task: result }
-      if (result.kind === "message") return { message: result }
+      if (result.kind === "status-update") return { statusUpdate: cleanResult(result) }
+      if (result.kind === "artifact-update") return { artifactUpdate: cleanResult(result) }
+      if (result.kind === "task") return { task: cleanResult(result) }
+      if (result.kind === "message") return { message: cleanResult(result) }
 
       // If we have a result but it doesn't match a known kind, just return it (fallback)
-      // This might happen for non-standard responses or ping if it returns a simple string
       return result
     }
 
@@ -70,6 +74,19 @@ export namespace A2AServer {
         try {
           body = await c.req.json()
           log.info("request body", { body })
+
+          // If this is the stream endpoint and the body is NOT a JSON-RPC request (missing jsonrpc field),
+          // wrap it in a JSON-RPC envelope assuming it's the params for message/stream.
+          if (isStreamEndpoint && !body.jsonrpc) {
+             body = {
+               jsonrpc: "2.0",
+               method: "message/stream",
+               params: body,
+               id: "stream-request"
+             }
+             log.info("wrapped request body", { body })
+          }
+
         } catch (e) {
           log.error("invalid json body", { error: e })
           const errorResponse = { error: { code: -32700, message: "Parse error" } }
