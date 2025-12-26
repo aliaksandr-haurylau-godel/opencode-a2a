@@ -27,6 +27,40 @@ export namespace A2AServer {
     // Setup Hono server for A2A
     const app = new Hono()
 
+    const mapToStreamResponse = (rpcResponse: any) => {
+      if (rpcResponse.error) {
+        return {
+          statusUpdate: {
+            kind: "status-update",
+            taskId: "unknown",
+            status: {
+              state: "failed",
+              timestamp: new Date().toISOString(),
+              message: {
+                kind: "message",
+                messageId: crypto.randomUUID(),
+                role: "agent",
+                parts: [{ kind: "text", text: rpcResponse.error.message || "Unknown error" }],
+              },
+            },
+            final: true,
+          },
+        }
+      }
+
+      const result = rpcResponse.result
+      if (!result) return null
+
+      if (result.kind === "status-update") return { statusUpdate: result }
+      if (result.kind === "artifact-update") return { artifactUpdate: result }
+      if (result.kind === "task") return { task: result }
+      if (result.kind === "message") return { message: result }
+
+      // If we have a result but it doesn't match a known kind, just return it (fallback)
+      // This might happen for non-standard responses or ping if it returns a simple string
+      return result
+    }
+
     const handleA2ARequest = async (c: Context) => {
       const isStreamEndpoint = c.req.path === "/v1/message:stream"
 
@@ -35,12 +69,15 @@ export namespace A2AServer {
         let body
         try {
           body = await c.req.json()
+          log.info("request body", { body })
         } catch (e) {
           log.error("invalid json body", { error: e })
           const errorResponse = { error: { code: -32700, message: "Parse error" } }
           if (isStreamEndpoint) {
             return streamSSE(c, async (stream) => {
-              await stream.writeSSE({ data: JSON.stringify(errorResponse) })
+              const mapped = mapToStreamResponse(errorResponse)
+              log.info("sending error (SSE)", { mapped })
+              await stream.writeSSE({ data: JSON.stringify(mapped) })
             })
           }
           return c.json(errorResponse, 400)
@@ -56,24 +93,33 @@ export namespace A2AServer {
           return streamSSE(c, async (stream) => {
             // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
             for await (const chunk of response) {
-              await stream.writeSSE({
-                data: JSON.stringify(chunk),
-              })
+              // chunk is the JSON-RPC response object from transport handler
+              // we need to unwrap it if we are in stream endpoint
+              let dataToSend = chunk
+              if (isStreamEndpoint) {
+                dataToSend = mapToStreamResponse(chunk)
+              }
+
+              if (dataToSend) {
+                log.info("sending chunk", { data: dataToSend })
+                await stream.writeSSE({
+                  data: JSON.stringify(dataToSend),
+                })
+              }
             }
           })
         } else if (response) {
           if (isStreamEndpoint) {
             return streamSSE(c, async (stream) => {
-              await stream.writeSSE({ data: JSON.stringify(response) })
+              const mapped = mapToStreamResponse(response)
+              log.info("sending response (SSE)", { mapped })
+              await stream.writeSSE({ data: JSON.stringify(mapped) })
             })
           }
           return c.json(response)
         } else {
           // Notification - no response
           if (isStreamEndpoint) {
-            // Even if no response, we should probably close the stream cleanly
-            // But A2A notifications usually don't return anything.
-            // If the client expects a stream, maybe we just send nothing and close?
             return streamSSE(c, async (_stream) => {
               // No data
             })
@@ -86,7 +132,9 @@ export namespace A2AServer {
         const errorResponse = { error: { code: -32603, message: "Internal error" } }
         if (isStreamEndpoint) {
           return streamSSE(c, async (stream) => {
-            await stream.writeSSE({ data: JSON.stringify(errorResponse) })
+            const mapped = mapToStreamResponse(errorResponse)
+            log.info("sending handler error (SSE)", { mapped })
+            await stream.writeSSE({ data: JSON.stringify(mapped) })
           })
         }
         return c.json(errorResponse, 500)
