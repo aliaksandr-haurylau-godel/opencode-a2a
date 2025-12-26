@@ -19,11 +19,7 @@ export namespace A2AServer {
     const executor = new OpenCodeExecutor(taskStore, opts.sdk)
 
     // Create Request Handler
-    const requestHandler = new DefaultRequestHandler(
-      card,
-      taskStore,
-      executor
-    )
+    const requestHandler = new DefaultRequestHandler(card, taskStore, executor)
 
     // Create Transport Handler
     const transportHandler = new JsonRpcTransportHandler(requestHandler)
@@ -46,10 +42,10 @@ export namespace A2AServer {
         // Hono body parsing
         let body
         try {
-            body = await c.req.json()
+          body = await c.req.json()
         } catch (e) {
-            log.error("invalid json body", { error: e })
-            return c.json({ error: { code: -32700, message: "Parse error" } }, 400)
+          log.error("invalid json body", { error: e })
+          return c.json({ error: { code: -32700, message: "Parse error" } }, 400)
         }
 
         // Handle the request
@@ -57,26 +53,26 @@ export namespace A2AServer {
 
         // If response is a generator, we need to stream it
         if (response && typeof response === "object" && Symbol.asyncIterator in response) {
-            // Headers are set by streamSSE, but we can set them explicitly if needed
-            // streamSSE sets Content-Type: text/event-stream
-            return streamSSE(c, async (stream) => {
-                // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
-                for await (const chunk of response) {
-                    await stream.writeSSE({
-                        data: JSON.stringify(chunk)
-                    })
-                }
-            })
+          // Headers are set by streamSSE, but we can set them explicitly if needed
+          // streamSSE sets Content-Type: text/event-stream
+          return streamSSE(c, async (stream) => {
+            // @ts-ignore - TS doesn't like AsyncGenerator in for-await here easily without full types
+            for await (const chunk of response) {
+              await stream.writeSSE({
+                data: JSON.stringify(chunk),
+              })
+            }
+          })
         } else if (response) {
-            return c.json(response)
+          return c.json(response)
         } else {
-            // Notification - no response
-            return c.body(null, 204)
+          // Notification - no response
+          return c.body(null, 204)
         }
       } catch (err) {
-          log.error("handler error", { error: err })
-          // If we are here, we haven't started streaming yet
-          return c.json({ error: { code: -32603, message: "Internal error" } }, 500)
+        log.error("handler error", { error: err })
+        // If we are here, we haven't started streaming yet
+        return c.json({ error: { code: -32603, message: "Internal error" } }, 500)
       }
     })
 
