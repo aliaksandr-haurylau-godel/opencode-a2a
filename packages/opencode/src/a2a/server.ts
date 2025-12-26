@@ -78,15 +78,14 @@ export namespace A2AServer {
           // If this is the stream endpoint and the body is NOT a JSON-RPC request (missing jsonrpc field),
           // wrap it in a JSON-RPC envelope assuming it's the params for message/stream.
           if (isStreamEndpoint && !body.jsonrpc) {
-             body = {
-               jsonrpc: "2.0",
-               method: "message/stream",
-               params: body,
-               id: "stream-request"
-             }
-             log.info("wrapped request body", { body })
+            body = {
+              jsonrpc: "2.0",
+              method: "message/stream",
+              params: body,
+              id: "stream-request",
+            }
+            log.info("wrapped request body", { body })
           }
-
         } catch (e) {
           log.error("invalid json body", { error: e })
           const errorResponse = { error: { code: -32700, message: "Parse error" } }
