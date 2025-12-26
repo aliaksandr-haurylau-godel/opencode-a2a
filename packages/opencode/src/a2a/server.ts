@@ -1,4 +1,4 @@
-import { Hono } from "hono"
+import { Hono, type Context } from "hono"
 import { streamSSE } from "hono/streaming"
 import { DefaultRequestHandler, JsonRpcTransportHandler } from "@a2a-js/sdk/server"
 import { OpencodeClient } from "@opencode-ai/sdk"
@@ -27,17 +27,7 @@ export namespace A2AServer {
     // Setup Hono server for A2A
     const app = new Hono()
 
-    app.onError((err, c) => {
-      log.error("request error", { error: err })
-      return c.json({ error: { message: err.message } }, 500)
-    })
-
-    app.get("/.well-known/agent-card.json", async (c) => {
-      const agentCard = await requestHandler.getAgentCard()
-      return c.json(agentCard)
-    })
-
-    app.post("/", async (c) => {
+    const handleA2ARequest = async (c: Context) => {
       try {
         // Hono body parsing
         let body
@@ -74,7 +64,20 @@ export namespace A2AServer {
         // If we are here, we haven't started streaming yet
         return c.json({ error: { code: -32603, message: "Internal error" } }, 500)
       }
+    }
+
+    app.onError((err, c) => {
+      log.error("request error", { error: err })
+      return c.json({ error: { message: err.message } }, 500)
     })
+
+    app.get("/.well-known/agent-card.json", async (c) => {
+      const agentCard = await requestHandler.getAgentCard()
+      return c.json(agentCard)
+    })
+
+    app.post("/", handleA2ARequest)
+    app.post("/v1/message:stream", handleA2ARequest)
 
     app.get("/health", (c) => c.json({ status: "ok" }))
 
