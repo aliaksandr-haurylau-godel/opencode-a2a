@@ -61,7 +61,22 @@ export class OpenCodeExecutor implements AgentExecutor {
     const abortController = new AbortController()
 
     // We await subscription setup to avoid race condition
-    await this.startEventListener(sessionId, eventBus, taskId, requestContext.contextId, abortController.signal)
+    // We also pass a promise resolve function to be called when "done" event is seen
+    // to ensure we captured everything.
+    let eventStreamDoneResolve: () => void
+    const eventStreamDone = new Promise<void>((resolve) => {
+        eventStreamDoneResolve = resolve
+    })
+
+    await this.startEventListener(
+        sessionId,
+        eventBus,
+        taskId,
+        requestContext.contextId,
+        abortController.signal,
+        // @ts-ignore
+        eventStreamDoneResolve
+    )
 
     try {
       // Send prompt
@@ -72,6 +87,12 @@ export class OpenCodeExecutor implements AgentExecutor {
         },
       })
 
+      // Prompt has returned, meaning generation is finished on server side.
+      // We give a small buffer for events to arrive, or wait for event listener to see "finish"?
+      // The event listener doesn't explicitly detect "finish" currently.
+      // So we'll just wait a short moment to ensure the event stream buffer is drained.
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       // If prompt returns successfully, we mark as completed
       eventBus.publish({
         kind: "status-update",
@@ -79,10 +100,11 @@ export class OpenCodeExecutor implements AgentExecutor {
         contextId: requestContext.contextId,
         final: true,
         status: {
-          state: "completed",
-          timestamp: new Date().toISOString(),
-        },
+            state: "completed",
+            timestamp: new Date().toISOString(),
+        }
       })
+
     } catch (err) {
       log.error("failed to prompt session", { error: err })
       eventBus.publish({
@@ -102,8 +124,8 @@ export class OpenCodeExecutor implements AgentExecutor {
         },
       })
     } finally {
-      // Stop the event listener
-      abortController.abort()
+        // Stop the event listener
+        abortController.abort()
     }
   }
 
@@ -132,6 +154,7 @@ export class OpenCodeExecutor implements AgentExecutor {
     taskId: string,
     contextId: string,
     signal: AbortSignal,
+    doneCallback?: () => void
   ) {
     // Perform subscription and wait for it
     const events = await this.sdk.event.subscribe({
@@ -143,72 +166,74 @@ export class OpenCodeExecutor implements AgentExecutor {
     // Start background loop
     ;(async () => {
       try {
-        for await (const event of iterator) {
-          if (signal.aborted) break
+          for await (const event of iterator) {
+            if (signal.aborted) break
 
-          if (event.type === "message.part.updated") {
-            const props = event.properties
-            const { part } = props
+            if (event.type === "message.part.updated") {
+              const props = event.properties
+              const { part } = props
 
-            if (part.sessionID !== sessionId) continue
+              if (part.sessionID !== sessionId) continue
 
-            // Fetch message to check role, as per ACP agent
-            const message = await this.sdk.session
-              .message({
-                path: {
-                  id: sessionId,
-                  messageID: part.messageID,
-                },
-              })
-              .then((x) => x.data)
-              .catch((err) => {
-                log.error("unexpected error when fetching message", { error: err })
-                return undefined
-              })
+              // Fetch message to check role, as per ACP agent
+              const message = await this.sdk.session
+                      .message({
+                        path: {
+                          id: sessionId,
+                          messageID: part.messageID,
+                        },
+                      })
+                      .then((x) => x.data)
+                      .catch((err) => {
+                        log.error("unexpected error when fetching message", { error: err })
+                        return undefined
+                      })
 
-            if (!message || message.info.role !== "assistant") continue
+              if (!message || message.info.role !== "assistant") continue
 
-            if (part.type === "text") {
-              const delta = props.delta
-              if (delta) {
-                eventBus.publish({
-                  kind: "artifact-update",
-                  taskId,
-                  contextId,
-                  append: true,
-                  artifact: {
-                    artifactId: "response",
-                    name: "response",
-                    parts: [{ kind: "text", text: delta }],
-                  },
-                })
-              }
-            } else if (part.type === "tool") {
-              if (part.state.status === "running") {
-                eventBus.publish({
-                  kind: "status-update",
-                  taskId,
-                  contextId,
-                  final: false,
-                  status: {
-                    state: "working",
-                    timestamp: new Date().toISOString(),
-                    message: {
-                      kind: "message",
-                      messageId: crypto.randomUUID(),
-                      role: "agent",
-                      parts: [{ kind: "text", text: `Running tool: ${part.tool}` }],
+              if (part.type === "text") {
+                const delta = props.delta
+                if (delta) {
+                  eventBus.publish({
+                    kind: "artifact-update",
+                    taskId,
+                    contextId,
+                    append: true,
+                    artifact: {
+                      artifactId: "response",
+                      name: "response",
+                      parts: [{ kind: "text", text: delta }],
                     },
-                  },
-                })
+                  })
+                }
+              } else if (part.type === "tool") {
+                if (part.state.status === "running") {
+                   eventBus.publish({
+                    kind: "status-update",
+                    taskId,
+                    contextId,
+                    final: false,
+                    status: {
+                      state: "working",
+                      timestamp: new Date().toISOString(),
+                      message: {
+                          kind: "message",
+                          messageId: crypto.randomUUID(),
+                          role: "agent",
+                          parts: [{kind: "text", text: `Running tool: ${part.tool}`}]
+                      }
+                    },
+                  })
+                }
               }
             }
           }
-        }
       } catch (err) {
-        if (!signal.aborted) {
-          log.error("event listener error", { error: err })
-        }
+          if (!signal.aborted) {
+             log.error("event listener error", { error: err })
+          }
+      } finally {
+          if (doneCallback) doneCallback()
       }
     })()
   }
