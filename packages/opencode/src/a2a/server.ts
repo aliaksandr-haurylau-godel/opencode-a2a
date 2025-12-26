@@ -28,6 +28,8 @@ export namespace A2AServer {
     const app = new Hono()
 
     const handleA2ARequest = async (c: Context) => {
+      const isStreamEndpoint = c.req.path === "/v1/message:stream"
+
       try {
         // Hono body parsing
         let body
@@ -35,7 +37,13 @@ export namespace A2AServer {
           body = await c.req.json()
         } catch (e) {
           log.error("invalid json body", { error: e })
-          return c.json({ error: { code: -32700, message: "Parse error" } }, 400)
+          const errorResponse = { error: { code: -32700, message: "Parse error" } }
+          if (isStreamEndpoint) {
+            return streamSSE(c, async (stream) => {
+              await stream.writeSSE({ data: JSON.stringify(errorResponse) })
+            })
+          }
+          return c.json(errorResponse, 400)
         }
 
         // Handle the request
@@ -54,15 +62,34 @@ export namespace A2AServer {
             }
           })
         } else if (response) {
+          if (isStreamEndpoint) {
+            return streamSSE(c, async (stream) => {
+              await stream.writeSSE({ data: JSON.stringify(response) })
+            })
+          }
           return c.json(response)
         } else {
           // Notification - no response
+          if (isStreamEndpoint) {
+            // Even if no response, we should probably close the stream cleanly
+            // But A2A notifications usually don't return anything.
+            // If the client expects a stream, maybe we just send nothing and close?
+            return streamSSE(c, async (_stream) => {
+              // No data
+            })
+          }
           return c.body(null, 204)
         }
       } catch (err) {
         log.error("handler error", { error: err })
         // If we are here, we haven't started streaming yet
-        return c.json({ error: { code: -32603, message: "Internal error" } }, 500)
+        const errorResponse = { error: { code: -32603, message: "Internal error" } }
+        if (isStreamEndpoint) {
+          return streamSSE(c, async (stream) => {
+            await stream.writeSSE({ data: JSON.stringify(errorResponse) })
+          })
+        }
+        return c.json(errorResponse, 500)
       }
     }
 
