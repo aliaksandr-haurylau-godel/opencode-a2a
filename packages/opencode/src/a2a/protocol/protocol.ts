@@ -47,4 +47,16 @@ export namespace Protocol {
     result: z.any().optional(),
     error: z.string().optional(),
   })
+
+  // RPC Method Schemas
+  export const RunTaskRequest = z.object({
+    task: z.string(),
+    context: z.any().optional(),
+  })
+
+  export const PostMessageRequest = z.object({
+    taskId: z.string(),
+    content: z.string(),
+    role: z.enum(["user", "assistant", "system"]).default("user"),
+  })
 }

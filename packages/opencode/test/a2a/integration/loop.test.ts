@@ -27,6 +27,22 @@ describe("A2A Integration", () => {
     expect(result).toBe("ok")
   })
 
+  test("client can run a task", async () => {
+    const client = new A2AClient(`http://localhost:${PORT}`)
+    const result = await client.runTask("Write a poem")
+    expect(result.status).toBe("pending")
+    expect(result.taskId).toBeString()
+  })
+
+  test("client can post a message to a task", async () => {
+    const client = new A2AClient(`http://localhost:${PORT}`)
+    // First create a task
+    const task = await client.runTask("Chat task")
+    const result = await client.postMessage(task.taskId, "Hello world")
+    expect(result.success).toBe(true)
+    expect(result.messageId).toBeString()
+  })
+
   afterAll(() => {
     serverInstance?.stop()
   })

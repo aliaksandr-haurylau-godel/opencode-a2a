@@ -30,4 +30,12 @@ export class A2AClient {
 
     return data.result
   }
+
+  async runTask(task: string, context?: any) {
+    return this.request("run_task", { task, context })
+  }
+
+  async postMessage(taskId: string, content: string, role: "user" | "assistant" | "system" = "user") {
+    return this.request("post_message", { taskId, content, role })
+  }
 }
