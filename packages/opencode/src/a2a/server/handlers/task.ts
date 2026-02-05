@@ -1,6 +1,13 @@
 import { Protocol } from "../../protocol/protocol"
+import { AgentService } from "../services/agent"
 
 export class TaskHandler {
+  private agentService: AgentService
+
+  constructor(agentService: AgentService) {
+    this.agentService = agentService
+  }
+
   async handleRunTask(params: any) {
     const validated = Protocol.RunTaskRequest.parse(params)
     // Placeholder logic: map to OpenCode session creation eventually
@@ -20,22 +27,25 @@ export class TaskHandler {
   }
 
   async handleListTasks(params: any) {
-    // Return available tools/agents as tasks
+    const agents = await this.agentService.list()
     return {
-      tasks: [
-        {
-          name: "example-task",
-          description: "An example task",
-          input_schema: {}
-        }
-      ]
+      tasks: agents.map((agent) => ({
+        name: agent.name,
+        description: agent.description ?? "",
+        input_schema: {
+          type: "object",
+          properties: {
+            prompt: { type: "string" },
+          },
+        },
+      })),
     }
   }
 
   async handleGetTask(params: any) {
     return {
       id: params.id,
-      status: "pending"
+      status: "pending",
     }
   }
 }

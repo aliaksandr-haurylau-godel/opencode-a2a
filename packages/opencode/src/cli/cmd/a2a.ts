@@ -3,6 +3,7 @@ import { Log } from "@/util/log"
 import { A2AServer } from "../../a2a/server/server"
 import { HttpTransport } from "../../a2a/transport/http"
 import { TaskHandler } from "../../a2a/server/handlers/task"
+import { DefaultAgentService } from "../../a2a/server/services/agent"
 
 const log = Log.create({ service: "a2a-command" })
 
@@ -20,7 +21,8 @@ export const A2aCommand = cmd({
     log.info("Starting A2A server", { port: args.port })
 
     const transport = new HttpTransport(args.port)
-    const taskHandler = new TaskHandler()
+    const agentService = new DefaultAgentService()
+    const taskHandler = new TaskHandler(agentService)
     const server = new A2AServer(transport, taskHandler)
 
     await server.start()

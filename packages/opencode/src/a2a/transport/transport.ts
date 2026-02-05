@@ -1,5 +1,5 @@
 export interface Transport {
-  send(message: string): Promise<void>
-  receive(): Promise<string>
-  close(): Promise<void>
+  start(): Promise<void>
+  stop(): Promise<void>
+  onMessage(handler: (message: any) => Promise<any>): void
 }

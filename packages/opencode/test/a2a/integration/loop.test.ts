@@ -4,10 +4,14 @@ import { A2AClient } from "../../../src/a2a/client/client"
 import { HttpTransport } from "../../../src/a2a/transport/http"
 import { TaskHandler } from "../../../src/a2a/server/handlers/task"
 
+const mockAgentService = {
+  list: async () => [{ name: "test-agent", mode: "primary", permission: [], options: {} } as any],
+}
+
 describe("A2A Integration", () => {
   const PORT = 4001
   const transport = new HttpTransport(PORT)
-  const taskHandler = new TaskHandler()
+  const taskHandler = new TaskHandler(mockAgentService)
   const server = new A2AServer(transport, taskHandler)
 
   test("starts server", async () => {

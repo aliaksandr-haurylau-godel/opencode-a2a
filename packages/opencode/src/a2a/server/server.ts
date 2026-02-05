@@ -1,4 +1,4 @@
-import { Transport } from "../transport/http"
+import { Transport } from "../transport/transport"
 import { TaskHandler } from "./handlers/task"
 
 export class A2AServer {
