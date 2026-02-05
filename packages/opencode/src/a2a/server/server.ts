@@ -1,65 +1,53 @@
-import { Hono } from "hono"
-import { Protocol } from "../protocol/protocol"
+import { Transport } from "../transport/http"
 import { TaskHandler } from "./handlers/task"
 
 export class A2AServer {
-  private app: Hono
-  private port: number
+  private transport: Transport
   private taskHandler: TaskHandler
 
-  constructor(options: { port: number }) {
-    this.port = options.port
-    this.app = new Hono()
-    this.taskHandler = new TaskHandler()
-    this.setupRoutes()
-  }
-
-  private setupRoutes() {
-    this.app.get("/.well-known/a2a.json", (c) => {
-      return c.json({
-        a2a_version: Protocol.Version,
-        preferred_transport: "http",
-        transports: ["http"],
-      })
-    })
-
-    this.app.post("/a2a", async (c) => {
-      const body = await c.req.json()
-      // Basic JSON-RPC routing
-      if (body.jsonrpc !== "2.0") {
-        return c.json({ jsonrpc: "2.0", error: { code: -32600, message: "Invalid Request" }, id: null })
-      }
-
-      try {
-        let result
-        switch (body.method) {
-          case "run_task":
-            result = await this.taskHandler.handleRunTask(body.params)
-            break
-          case "post_message":
-            result = await this.taskHandler.handlePostMessage(body.params)
-            break
-          case "ping": // Keep ping for existing tests
-            result = "ok"
-            break
-          default:
-            return c.json({ jsonrpc: "2.0", error: { code: -32601, message: "Method not found" }, id: body.id })
-        }
-        return c.json({ jsonrpc: "2.0", result, id: body.id })
-      } catch (e: any) {
-        return c.json({ jsonrpc: "2.0", error: { code: -32000, message: e.message }, id: body.id })
-      }
-    })
+  constructor(transport: Transport, taskHandler: TaskHandler) {
+    this.transport = transport
+    this.taskHandler = taskHandler
+    this.transport.onMessage(this.handleRequest.bind(this))
   }
 
   async start() {
-    return Bun.serve({
-      port: this.port,
-      fetch: this.app.fetch,
-    })
+    await this.transport.start()
   }
 
-  fetch(req: Request) {
-    return this.app.fetch(req)
+  async stop() {
+    await this.transport.stop()
+  }
+
+  private async handleRequest(body: any): Promise<any> {
+    if (body.jsonrpc !== "2.0") {
+      return { jsonrpc: "2.0", error: { code: -32600, message: "Invalid Request" }, id: null }
+    }
+
+    try {
+      let result
+      switch (body.method) {
+        case "run_task":
+          result = await this.taskHandler.handleRunTask(body.params)
+          break
+        case "post_message":
+          result = await this.taskHandler.handlePostMessage(body.params)
+          break
+        case "tasks/list":
+          result = await this.taskHandler.handleListTasks(body.params)
+          break
+        case "tasks/get":
+          result = await this.taskHandler.handleGetTask(body.params)
+          break
+        case "ping":
+          result = "ok"
+          break
+        default:
+          return { jsonrpc: "2.0", error: { code: -32601, message: "Method not found" }, id: body.id }
+      }
+      return { jsonrpc: "2.0", result, id: body.id }
+    } catch (e: any) {
+      return { jsonrpc: "2.0", error: { code: -32000, message: e.message }, id: body.id }
+    }
   }
 }

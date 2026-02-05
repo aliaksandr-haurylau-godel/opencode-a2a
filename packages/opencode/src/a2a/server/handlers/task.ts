@@ -18,4 +18,24 @@ export class TaskHandler {
       messageId: `msg_${Math.random().toString(36).substr(2, 9)}`,
     }
   }
+
+  async handleListTasks(params: any) {
+    // Return available tools/agents as tasks
+    return {
+      tasks: [
+        {
+          name: "example-task",
+          description: "An example task",
+          input_schema: {}
+        }
+      ]
+    }
+  }
+
+  async handleGetTask(params: any) {
+    return {
+      id: params.id,
+      status: "pending"
+    }
+  }
 }

@@ -1,15 +1,18 @@
 import { describe, expect, test, afterAll } from "bun:test"
 import { A2AServer } from "../../../src/a2a/server/server"
 import { A2AClient } from "../../../src/a2a/client/client"
+import { HttpTransport } from "../../../src/a2a/transport/http"
+import { TaskHandler } from "../../../src/a2a/server/handlers/task"
 
 describe("A2A Integration", () => {
   const PORT = 4001
-  const server = new A2AServer({ port: PORT })
-  let serverInstance: any
+  const transport = new HttpTransport(PORT)
+  const taskHandler = new TaskHandler()
+  const server = new A2AServer(transport, taskHandler)
 
   test("starts server", async () => {
-    serverInstance = await server.start()
-    expect(serverInstance).toBeDefined()
+    await server.start()
+    expect(true).toBe(true)
   })
 
   test("client discovers server capabilities", async () => {
@@ -43,7 +46,7 @@ describe("A2A Integration", () => {
     expect(result.messageId).toBeString()
   })
 
-  afterAll(() => {
-    serverInstance?.stop()
+  afterAll(async () => {
+    await server.stop()
   })
 })

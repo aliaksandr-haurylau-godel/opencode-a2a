@@ -1,6 +1,8 @@
 import { cmd } from "./cmd"
 import { Log } from "@/util/log"
 import { A2AServer } from "../../a2a/server/server"
+import { HttpTransport } from "../../a2a/transport/http"
+import { TaskHandler } from "../../a2a/server/handlers/task"
 
 const log = Log.create({ service: "a2a-command" })
 
@@ -16,8 +18,15 @@ export const A2aCommand = cmd({
   },
   handler: async (args) => {
     log.info("Starting A2A server", { port: args.port })
-    const server = new A2AServer({ port: args.port })
+
+    const transport = new HttpTransport(args.port)
+    const taskHandler = new TaskHandler()
+    const server = new A2AServer(transport, taskHandler)
+
     await server.start()
+
+    // Output for inspector discovery
+    console.log(`A2A Server listening on port ${args.port}`)
     log.info("A2A server started", { port: args.port })
 
     // Keep process alive
