@@ -1,6 +1,6 @@
 import { describe, expect, test, mock } from "bun:test"
 import { A2AServer } from "../../src/a2a/server/server"
-import { HttpTransport } from "../../src/a2a/transport/http"
+import { HttpTransport } from "../../src/a2a/transport/http-transport"
 import { TaskHandler } from "../../src/a2a/server/handlers/task"
 
 const mockAgentService = {

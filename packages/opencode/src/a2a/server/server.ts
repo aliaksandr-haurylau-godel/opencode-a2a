@@ -1,6 +1,7 @@
 import { Transport } from "../transport/transport"
 import { TaskHandler } from "./handlers/task"
 
+// A2AServer: Decoupled server implementation using injected Transport
 export class A2AServer {
   private transport: Transport
   private taskHandler: TaskHandler

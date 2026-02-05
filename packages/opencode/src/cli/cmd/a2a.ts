@@ -1,7 +1,7 @@
 import { cmd } from "./cmd"
 import { Log } from "@/util/log"
 import { A2AServer } from "../../a2a/server/server"
-import { HttpTransport } from "../../a2a/transport/http"
+import { HttpTransport } from "../../a2a/transport/http-transport"
 import { TaskHandler } from "../../a2a/server/handlers/task"
 import { DefaultAgentService } from "../../a2a/server/services/agent"
 
