@@ -1,5 +1,6 @@
 import { Transport } from "../transport/transport"
 import { TaskHandler } from "./handlers/task"
+import { JsonRpc } from "../protocol/jsonrpc"
 
 // A2AServer: Decoupled server implementation using injected Transport
 export class A2AServer {
@@ -22,7 +23,7 @@ export class A2AServer {
 
   private async handleRequest(body: any): Promise<any> {
     if (body.jsonrpc !== "2.0") {
-      return { jsonrpc: "2.0", error: { code: -32600, message: "Invalid Request" }, id: null }
+      return JsonRpc.error(null, JsonRpc.Errors.InvalidRequest, "Invalid Request")
     }
 
     try {
@@ -44,11 +45,11 @@ export class A2AServer {
           result = "ok"
           break
         default:
-          return { jsonrpc: "2.0", error: { code: -32601, message: "Method not found" }, id: body.id }
+          return JsonRpc.error(body.id, JsonRpc.Errors.MethodNotFound, "Method not found")
       }
-      return { jsonrpc: "2.0", result, id: body.id }
+      return JsonRpc.success(body.id, result)
     } catch (e: any) {
-      return { jsonrpc: "2.0", error: { code: -32000, message: e.message }, id: body.id }
+      return JsonRpc.error(body.id, JsonRpc.Errors.InternalError, e.message)
     }
   }
 }

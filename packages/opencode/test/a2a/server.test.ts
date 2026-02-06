@@ -5,6 +5,7 @@ import { TaskHandler } from "../../src/a2a/server/handlers/task"
 
 const mockAgentService = {
   list: mock(async () => []),
+  get: mock(async (name) => (name === "found" ? ({ name } as any) : undefined)),
 }
 
 describe("A2AServer", () => {
@@ -24,5 +25,21 @@ describe("A2AServer", () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.a2a_version).toBe("0.3.0")
+  })
+
+  test("returns error for unknown task", async () => {
+    const transport = new HttpTransport(3002)
+    const handler = new TaskHandler(mockAgentService)
+    const server = new A2AServer(transport, handler)
+    await server.start()
+
+    const res = await fetch("http://localhost:3002/a2a", {
+      method: "POST",
+      body: JSON.stringify({ jsonrpc: "2.0", method: "tasks/get", params: { id: "unknown" }, id: 1 }),
+    })
+    const json = await res.json()
+    expect(json.error).toBeDefined()
+    expect(json.error.message).toContain("Task not found")
+    await server.stop()
   })
 })

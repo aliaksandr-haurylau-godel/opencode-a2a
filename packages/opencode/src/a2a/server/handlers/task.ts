@@ -43,9 +43,14 @@ export class TaskHandler {
   }
 
   async handleGetTask(params: any) {
+    const agent = await this.agentService.get(params.id)
+    if (!agent) {
+      throw new Error(`Task not found: ${params.id}`)
+    }
     return {
       id: params.id,
       status: "pending",
+      result: null,
     }
   }
 }

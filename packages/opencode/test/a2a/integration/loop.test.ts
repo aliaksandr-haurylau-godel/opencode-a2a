@@ -6,6 +6,7 @@ import { TaskHandler } from "../../../src/a2a/server/handlers/task"
 
 const mockAgentService = {
   list: async () => [{ name: "test-agent", mode: "primary", permission: [], options: {} } as any],
+  get: async (name: string) => ({ name, mode: "primary", permission: [], options: {} } as any),
 }
 
 describe("A2A Integration", () => {
