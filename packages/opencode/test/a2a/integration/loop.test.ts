@@ -9,10 +9,16 @@ const mockAgentService = {
   get: async (name: string) => ({ name, mode: "primary", permission: [], options: {} } as any),
 }
 
+const mockSessionService = {
+  create: async (task: string) => `session-${task}`,
+  get: async (id: string) => ({ id, status: "running" as const }),
+  postMessage: async (id: string, content: string) => `msg-${content}`,
+}
+
 describe("A2A Integration", () => {
   const PORT = 4001
   const transport = new HttpTransport(PORT)
-  const taskHandler = new TaskHandler(mockAgentService)
+  const taskHandler = new TaskHandler(mockAgentService, mockSessionService)
   const server = new A2AServer(transport, taskHandler)
 
   test("starts server", async () => {

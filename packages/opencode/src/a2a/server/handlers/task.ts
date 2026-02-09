@@ -1,28 +1,31 @@
 import { Protocol } from "../../protocol/protocol"
 import { AgentService } from "../services/agent"
+import { SessionService } from "../services/session"
 
 export class TaskHandler {
   private agentService: AgentService
+  private sessionService: SessionService
 
-  constructor(agentService: AgentService) {
+  constructor(agentService: AgentService, sessionService: SessionService) {
     this.agentService = agentService
+    this.sessionService = sessionService
   }
 
   async handleRunTask(params: any) {
     const validated = Protocol.RunTaskRequest.parse(params)
-    // Placeholder logic: map to OpenCode session creation eventually
+    const sessionId = await this.sessionService.create(validated.task)
     return {
-      taskId: `task_${Math.random().toString(36).substr(2, 9)}`,
+      taskId: sessionId,
       status: "pending",
     }
   }
 
   async handlePostMessage(params: any) {
     const validated = Protocol.PostMessageRequest.parse(params)
-    // Placeholder logic: map to OpenCode message
+    const result = await this.sessionService.postMessage(validated.taskId, validated.content)
     return {
       success: true,
-      messageId: `msg_${Math.random().toString(36).substr(2, 9)}`,
+      messageId: result,
     }
   }
 
@@ -43,14 +46,25 @@ export class TaskHandler {
   }
 
   async handleGetTask(params: any) {
+    // Check if it's an agent definition (task capability) or a running session (task execution)
     const agent = await this.agentService.get(params.id)
-    if (!agent) {
-      throw new Error(`Task not found: ${params.id}`)
+    if (agent) {
+      return {
+        id: params.id,
+        status: "pending", // Agent definition is "pending" execution? Or "ready"? Spec is vague here for capabilities.
+        result: null,
+      }
     }
-    return {
-      id: params.id,
-      status: "pending",
-      result: null,
+
+    try {
+      const session = await this.sessionService.get(params.id)
+      return {
+        id: session.id,
+        status: session.status,
+        result: null,
+      }
+    } catch {
+      throw new Error(`Task not found: ${params.id}`)
     }
   }
 }
