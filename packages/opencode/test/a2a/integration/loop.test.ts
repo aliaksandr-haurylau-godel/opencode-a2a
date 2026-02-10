@@ -2,7 +2,7 @@ import { describe, expect, test, afterAll } from "bun:test"
 import { A2AServer } from "../../../src/a2a/server/server"
 import { A2AClient } from "../../../src/a2a/client/client"
 import { HttpTransport } from "../../../src/a2a/transport/http-transport"
-import { TaskHandler } from "../../../src/a2a/server/handlers/task"
+import { TaskHandler } from "../../../src/a2a/server/handlers/task-handler"
 
 const mockAgentService = {
   list: async () => [{ name: "test-agent", mode: "primary", permission: [], options: {} } as any],

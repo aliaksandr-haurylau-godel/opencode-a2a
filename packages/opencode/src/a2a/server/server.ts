@@ -1,5 +1,5 @@
 import { Transport } from "../transport/transport"
-import { TaskHandler } from "./handlers/task"
+import { TaskHandler } from "./handlers/task-handler"
 import { JsonRpc } from "../protocol/jsonrpc"
 
 // A2AServer: Decoupled server implementation using injected Transport

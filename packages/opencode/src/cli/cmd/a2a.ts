@@ -2,8 +2,11 @@ import { cmd } from "./cmd"
 import { Log } from "@/util/log"
 import { A2AServer } from "../../a2a/server/server"
 import { HttpTransport } from "../../a2a/transport/http-transport"
-import { TaskHandler } from "../../a2a/server/handlers/task"
+import { TaskHandler } from "../../a2a/server/handlers/task-handler"
 import { DefaultAgentService } from "../../a2a/server/services/agent"
+import { DefaultSessionService } from "../../a2a/server/services/session-service"
+import { createOpencodeClient } from "@opencode-ai/sdk/v2"
+import { Server } from "../../server/server"
 
 const log = Log.create({ service: "a2a-command" })
 
@@ -22,7 +25,20 @@ export const A2aCommand = cmd({
 
     const transport = new HttpTransport(args.port)
     const agentService = new DefaultAgentService()
-    const taskHandler = new TaskHandler(agentService)
+
+    // Initialize SDK client for session service
+    // We assume the server is running on the same host but different port for A2A?
+    // Actually, A2A server IS the server extension.
+    // We need to connect to the MAIN OpenCode server API.
+    // Assuming standard port 4096 or similar.
+    // For now, we use localhost:4096 as default if running locally.
+    const mainServerUrl = `http://localhost:4096`
+    const sdk = createOpencodeClient({
+        baseUrl: mainServerUrl,
+    })
+
+    const sessionService = new DefaultSessionService(sdk)
+    const taskHandler = new TaskHandler(agentService, sessionService)
     const server = new A2AServer(transport, taskHandler)
 
     await server.start()
